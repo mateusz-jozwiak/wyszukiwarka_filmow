@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wyszukiwarka Filmów</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+        }
+
+        .navbar, .card, .modal-content, .table {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+
+        .btn-primary, .btn-secondary, .btn-info {
+            background-color: #333333;
+            border-color: #333333;
+        }
+
+        .btn-primary:hover, .btn-secondary:hover, .btn-info:hover {
+            background-color: #444444;
+            border-color: #444444;
+        }
+
+        .form-control {
+            background-color: #2b2b2b;
+            color: #ffffff;
+            border: 1px solid #444444;
+        }
+
+        .form-control::placeholder {
+            color: #bbbbbb;
+        }
+
+        .pulsing {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .info-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            padding: 5px;
+            cursor: pointer;
+        }
+
+        .card {
+            margin: 10px;
+            position: relative;
+        }
+        .card-body {
+            font-size: 0.8rem;
+        }
+        .card-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-img-top {
+            width: 100%;
+            height: auto;
+            max-height: 25rem;
+            object-fit: cover;
+        }
+        .row {
+            margin: 0 -10px;
+        }
+        .col-md-3 {
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-5">Wyszukiwarka Filmów</h1>
+    <form id="searchForm" class="form-inline my-3">
+        <div class="form-group">
+            <input type="text" class="form-control mr-2" id="query" placeholder="Wpisz nazwę filmu">
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary mr-2">Szukaj</button>
+        </div>
+        <div class="form-group">
+            <button type="button" class="btn btn-secondary mr-2" id="sortRating">Sortuj wg oceny</button>
+        </div>
+        <div class="form-group">
+            <button type="button" class="btn btn-secondary mr-2" id="sortVotes">Sortuj wg liczby głosów</button>
+        </div>
+        <div class="form-group">
+            <a href="#" id="switchToTable" class="btn btn-info">Wyświetl w formie tabeli</a>
+        </div>
+    </form>
+    <div id="searching-text" class="pulsing">SZUKAM...</div>
+    <div id="movies" class="row"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="movieModal" tabindex="-1" role="dialog" aria-labelledby="movieModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="movieModalLabel">Szczegóły filmu</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="movieDetails"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+let moviesData = [];
+
+$(document).ready(function() {
+    const queryString = new URLSearchParams(window.location.search);
+    const queryParam = queryString.get('query');
+
+    if (queryParam) {
+        $('#query').val(queryParam);
+        searchMovies(queryParam);
+    }
+
+    $('#searchForm').on('submit', function(e) {
+        e.preventDefault();
+        const query = $('#query').val();
+        searchMovies(query);
+    });
+
+    $('#sortRating').on('click', function() {
+        if (moviesData.length > 0) {
+            const sortedMovies = [...moviesData].sort((a, b) => b.vote_average - a.vote_average);
+            displayMovies(sortedMovies);
+        }
+    });
+
+    $('#sortVotes').on('click', function() {
+        if (moviesData.length > 0) {
+            const sortedMovies = [...moviesData].sort((a, b) => b.vote_count - a.vote_count);
+            displayMovies(sortedMovies);
+        }
+    });
+
+    $('#switchToTable').on('click', function(e) {
+        e.preventDefault();
+        const query = $('#query').val();
+        window.location.href = `/?query=${query}`;
+    });
+});
+
+function searchMovies(query) {
+    $('#searching-text').show();
+    $('#movies').empty();
+
+    $.get('/search', { query: query }, function(data) {
+        moviesData = data;
+        displayMovies(data);
+        $('#searching-text').hide();
+    });
+}
+
+function displayMovies(movies) {
+    $('#movies').empty();
+    movies.forEach(function(movie) {
+        const posterPath = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '/static/images/movie.png';
+        const movieHtml = `
+            <div class="col-md-3 col-sm-6 mb-4">
+                <div class="card">
+                    <img src="${posterPath}" class="card-img-top img-fluid" alt="${movie.title}">
+                    <div class="card-body">
+                        <h5 class="card-title">${movie.title}</h5>
+                        <p class="card-text"><strong>Reżyser:</strong> ${movie.director}</p>
+                        <p class="card-text"><strong>Data premiery:</strong> ${movie.release_date}</p>
+                        <p class="card-text"><strong>Ocena:</strong> ${movie.vote_average}</p>
+                        <p class="card-text"><strong>Liczba głosów:</strong> ${movie.vote_count}</p>
+                    </div>
+                    <i class="fas fa-info-circle info-icon" onclick="showMovieDetails(${movie.id})"></i>
+                </div>
+            </div>
+        `;
+        $('#movies').append(movieHtml);
+    });
+}
+
+function showMovieDetails(movieId) {
+    $.get(`/movie/${movieId}`, function(movie) {
+        const movieDetailsHtml = `
+            <h3>${movie.title}</h3>
+            <p><strong>Reżyser:</strong> ${movie.director}</p>
+            <p><strong>Data premiery:</strong> ${movie.release_date}</p>
+            <p><strong>Ocena:</strong> ${movie.vote_average}</p>
+            <p><strong>Liczba głosów:</strong> ${movie.vote_count}</p>
+            <p>${movie.overview}</p>
+        `;
+        $('#movieDetails').html(movieDetailsHtml);
+        $('#movieModal').modal('show');
+    });
+}
+</script>
+</body>
+</html>
